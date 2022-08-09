@@ -30,5 +30,6 @@ type (
 	// It should usable with concurrent writing.
 	Logger interface {
 		Infof(format string, args ...interface{})
+		Errorf(format string, args ...interface{})
 	}
 )

@@ -110,15 +110,26 @@ func (r *ExecutionManager) run(process ManagedProcess) {
 	defer r.wg.Done()
 	r.logInfof("process %q started", process.Name())
 	defer r.logInfof("process %q stopped", process.Name())
+	defer func() {
+		if val := recover(); val != nil {
+			r.logErrorf("panic detected in process %q: %v", process.Name(), val)
+		}
+		if r.ctx.Err() == nil {
+			r.logInfof("graceful shutdown started by process %q", process.Name())
+			r.cancelFunc()
+		}
+	}()
 	process.Run(r.ctx)
-	if r.ctx.Err() == nil {
-		r.logInfof("graceful shutdown started by process %q", process.Name())
-		r.cancelFunc()
-	}
 }
 
 func (r *ExecutionManager) logInfof(format string, args ...interface{}) {
 	if r.log != nil {
 		r.log.Infof(format, args...)
+	}
+}
+
+func (r *ExecutionManager) logErrorf(format string, args ...interface{}) {
+	if r.log != nil {
+		r.log.Errorf(format, args...)
 	}
 }
