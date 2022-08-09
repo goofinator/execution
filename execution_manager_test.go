@@ -81,7 +81,7 @@ func TestExecutionManagerWithNoProcess(t *testing.T) {
 	require.NoError(t, whaitChan(reportCh), "expect: ExecuteProcesses exit\ngot: ExecuteProcesses hanging")
 }
 
-func TestExecutionManagerWithOnlyOneProcessByItsExit(t *testing.T) {
+func TestExecutionManagerWithOneProcessByItsExit(t *testing.T) {
 	wg := sync.WaitGroup{}
 	stopCh := make(chan struct{})
 	reportCh := make(chan struct{})
@@ -106,7 +106,7 @@ func TestExecutionManagerWithOnlyOneProcessByItsExit(t *testing.T) {
 	require.NoError(t, whaitChan(reportCh), "expect: ExecuteProcesses exit\ngot: ExecuteProcesses hanging")
 }
 
-func TestExecutionManagerWithTwoProcessByProcess1Exit(t *testing.T) {
+func TestExecutionManagerWithTwoProcessesByProcess1Exit(t *testing.T) {
 	wg := sync.WaitGroup{}
 	stopCh := make(chan struct{})
 	reportCh := make(chan struct{})
@@ -134,7 +134,7 @@ func TestExecutionManagerWithTwoProcessByProcess1Exit(t *testing.T) {
 	require.NoError(t, whaitChan(reportCh), "expect: ExecuteProcesses exit\ngot: ExecuteProcesses hanging")
 }
 
-func TestExecutionManagerWithTwoProcessByProcess2Exit(t *testing.T) {
+func TestExecutionManagerWithTwoProcessesByProcess2Exit(t *testing.T) {
 	wg := sync.WaitGroup{}
 	stopCh := make(chan struct{})
 	reportCh := make(chan struct{})
@@ -163,7 +163,7 @@ func TestExecutionManagerWithTwoProcessByProcess2Exit(t *testing.T) {
 	require.NoError(t, whaitChan(reportCh), "expect: ExecuteProcesses exit\ngot: ExecuteProcesses hanging")
 }
 
-func TestExecutionManagerWithTwoProcessBySignalExit(t *testing.T) {
+func TestExecutionManagerWithTwoProcessesBySignalExit(t *testing.T) {
 	wg := sync.WaitGroup{}
 	reportCh := make(chan struct{})
 	stopSignal := syscall.SIGUSR1
