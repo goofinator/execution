@@ -121,17 +121,3 @@ func (r *ExecutionManager) logInfof(format string, args ...interface{}) {
 		r.log.Infof(format, args...)
 	}
 }
-
-type (
-	// ManagedProcess implements some process within it's Run method.
-	// Run method should return as the ctx is cancelled.
-	ManagedProcess interface {
-		Run(ctx context.Context)
-		Name() string
-	}
-	// Logger to write processes execution status log.
-	// It should usable with concurrent writing.
-	Logger interface {
-		Infof(format string, args ...interface{})
-	}
-)
