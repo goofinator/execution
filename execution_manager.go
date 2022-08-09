@@ -31,8 +31,8 @@ type ExecutionManagerConfig struct {
 	Signals []os.Signal
 }
 
-// NewDefaultExecutionManager creates preconfigured ExecutionManager
-// gracefull shutdown will be initiated by SIGINT or SIGTERM signals
+// NewDefaultExecutionManager creates ExecutionManager
+// with default config
 func NewDefaultExecutionManager() *ExecutionManager {
 	config := ExecutionManagerConfig{}
 	return NewExecutionManager(config)
@@ -54,10 +54,10 @@ func NewExecutionManager(config ExecutionManagerConfig) *ExecutionManager {
 	}
 }
 
-// The ExecutionManager ensures that multiple processes are executed in a controlled manner.
+// The ExecutionManager runs multiple processes in a controlled manner.
 // A graceful termination will be initiated if one of the conditions is met:
-//  - Programm receives one of the predefined signals.
-//  - One of the processes returns from its Run method
+//  - Programm receives one of the configured signals.
+//  - One of the processes returns from it's Run method
 type ExecutionManager struct {
 	ctx        context.Context
 	cancelFunc context.CancelFunc
@@ -66,7 +66,7 @@ type ExecutionManager struct {
 	sigChan    chan os.Signal
 }
 
-// TakeOnControll takes process under ExecutionManager controll.
+// TakeOnControll takes the process under ExecutionManager controll.
 // It's Run method will be executed when ExecuteProcesses is called.
 func (r *ExecutionManager) TakeOnControll(process ...ManagedProcess) {
 	r.processes = append(r.processes, process...)
@@ -75,10 +75,10 @@ func (r *ExecutionManager) TakeOnControll(process ...ManagedProcess) {
 // ExecuteProcesses starts all processes under its control by calling the Run method.
 // If one of the conditions is met:
 //  - Programm receives one of the predefined signals;
-//  - One of the processes returns from its Run method;
+//  - One of the processes returns from its Run method,
 // the ctx of all processes will be canceled, so every Run method should return so fast as it can.
 // This method returns when all controlled processes returns from their Run methods.
-func (r ExecutionManager) ExecuteProcesses() {
+func (r *ExecutionManager) ExecuteProcesses() {
 	defer r.cancelFunc()
 	if len(r.processes) == 0 {
 		return
@@ -91,7 +91,7 @@ func (r ExecutionManager) ExecuteProcesses() {
 	r.wg.Wait()
 }
 
-func (r ExecutionManager) listenSignals() {
+func (r *ExecutionManager) listenSignals() {
 	defer r.wg.Done()
 	select {
 	case <-r.sigChan:
@@ -101,7 +101,7 @@ func (r ExecutionManager) listenSignals() {
 	}
 }
 
-func (r ExecutionManager) run(process ManagedProcess) {
+func (r *ExecutionManager) run(process ManagedProcess) {
 	defer r.wg.Done()
 	process.Run(r.ctx)
 	if r.ctx.Err() == nil {
