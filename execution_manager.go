@@ -19,6 +19,7 @@ package execution
 
 import (
 	"context"
+	"log"
 	"os"
 	"os/signal"
 	"sync"
@@ -64,6 +65,7 @@ type ExecutionManager struct {
 	processes  []ManagedProcess
 	wg         *sync.WaitGroup
 	sigChan    chan os.Signal
+	log        log.Logger
 }
 
 // TakeOnControll takes the process under ExecutionManager controll.
@@ -80,10 +82,7 @@ func (r *ExecutionManager) TakeOnControll(process ...ManagedProcess) {
 // This method returns when all controlled processes returns from their Run methods.
 func (r *ExecutionManager) ExecuteProcesses() {
 	defer r.cancelFunc()
-	if len(r.processes) == 0 {
-		return
-	}
-	r.wg.Add(len(r.processes) + 1)
+	r.wg.Add(len(r.processes))
 	go r.listenSignals()
 	for _, process := range r.processes {
 		go r.run(process)
@@ -92,7 +91,6 @@ func (r *ExecutionManager) ExecuteProcesses() {
 }
 
 func (r *ExecutionManager) listenSignals() {
-	defer r.wg.Done()
 	select {
 	case <-r.sigChan:
 		r.cancelFunc()
