@@ -19,7 +19,6 @@ package execution
 
 import (
 	"context"
-	"log"
 	"os"
 	"os/signal"
 	"sync"
@@ -28,8 +27,10 @@ import (
 
 // ExecutionManagerConfig is a configuration of ExecutionManager
 type ExecutionManagerConfig struct {
-	// Signals - is a list of syscall.Signals capable to initiate shotdown (default: [SIGINT, SIGTERM])
+	// Signals is a list of syscall.Signals capable to initiate shotdown (default: [SIGINT, SIGTERM])
 	Signals []os.Signal
+	// Log is a Logger that will be used to display a processes execution status (default: nil - no output)
+	Log Logger
 }
 
 // NewDefaultExecutionManager creates ExecutionManager
@@ -52,6 +53,7 @@ func NewExecutionManager(config ExecutionManagerConfig) *ExecutionManager {
 		cancelFunc: cancelFunc,
 		wg:         &sync.WaitGroup{},
 		sigChan:    signChan,
+		log:        config.Log,
 	}
 }
 
@@ -59,14 +61,16 @@ func NewExecutionManager(config ExecutionManagerConfig) *ExecutionManager {
 // A graceful termination will be initiated if one of the conditions is met:
 //  - Programm receives one of the configured signals.
 //  - One of the processes returns from it's Run method
-type ExecutionManager struct {
-	ctx        context.Context
-	cancelFunc context.CancelFunc
-	processes  []ManagedProcess
-	wg         *sync.WaitGroup
-	sigChan    chan os.Signal
-	log        log.Logger
-}
+type (
+	ExecutionManager struct {
+		ctx        context.Context
+		cancelFunc context.CancelFunc
+		processes  []ManagedProcess
+		wg         *sync.WaitGroup
+		sigChan    chan os.Signal
+		log        Logger
+	}
+)
 
 // TakeOnControll takes the process under ExecutionManager controll.
 // It's Run method will be executed when ExecuteProcesses is called.
@@ -81,6 +85,7 @@ func (r *ExecutionManager) TakeOnControll(process ...ManagedProcess) {
 // the ctx of all processes will be canceled, so every Run method should return so fast as it can.
 // This method returns when all controlled processes returns from their Run methods.
 func (r *ExecutionManager) ExecuteProcesses() {
+	r.logInfof("start all processes execution")
 	defer r.cancelFunc()
 	r.wg.Add(len(r.processes))
 	go r.listenSignals()
@@ -92,7 +97,8 @@ func (r *ExecutionManager) ExecuteProcesses() {
 
 func (r *ExecutionManager) listenSignals() {
 	select {
-	case <-r.sigChan:
+	case signal := <-r.sigChan:
+		r.logInfof("graceful shutdown started by signal %q", signal.String())
 		r.cancelFunc()
 	case <-r.ctx.Done():
 		break
@@ -101,14 +107,31 @@ func (r *ExecutionManager) listenSignals() {
 
 func (r *ExecutionManager) run(process ManagedProcess) {
 	defer r.wg.Done()
+	r.logInfof("process %q started", process.Name())
+	defer r.logInfof("process %q stopped", process.Name())
 	process.Run(r.ctx)
 	if r.ctx.Err() == nil {
+		r.logInfof("graceful shutdown started by process %q", process.Name())
 		r.cancelFunc()
 	}
 }
 
-// ManagedProcess implements some process within it's Run method.
-// Run method should return as the ctx is cancelled.
-type ManagedProcess interface {
-	Run(ctx context.Context)
+func (r *ExecutionManager) logInfof(format string, args ...interface{}) {
+	if r.log != nil {
+		r.log.Infof(format, args...)
+	}
 }
+
+type (
+	// ManagedProcess implements some process within it's Run method.
+	// Run method should return as the ctx is cancelled.
+	ManagedProcess interface {
+		Run(ctx context.Context)
+		Name() string
+	}
+	// Logger to write processes execution status log.
+	// It should usable with concurrent writing.
+	Logger interface {
+		Infof(format string, args ...interface{})
+	}
+)
