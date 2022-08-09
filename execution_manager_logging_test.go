@@ -18,64 +18,26 @@
 package execution_test
 
 import (
-	"context"
 	"fmt"
 	"os"
 	"sync"
 	"syscall"
 	"testing"
-	"time"
 
 	"github.com/goofinator/execution"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
-const maxProcessDuration time.Duration = 5 * time.Second
-
-func newSomeProcess(name string, manualStopCh <-chan struct{}, wg *sync.WaitGroup) *someProcess {
-	wg.Add(1)
-	return &someProcess{
-		manualStopCh: manualStopCh,
-		runCalledCh:  make(chan struct{}),
-		wg:           wg,
-		name:         name,
-	}
-}
-
-type someProcess struct {
-	name            string
-	wg              *sync.WaitGroup
-	manualStopCh    <-chan struct{}
-	runCalledCh     chan struct{}
-	isExitByCommand bool
-	isExitByContext bool
-}
-
-func (r someProcess) isRunCalledCh() <-chan struct{} { return r.runCalledCh }
-
-func (r someProcess) Name() string { return r.name }
-
-func (r *someProcess) Run(ctx context.Context) {
-	close(r.runCalledCh)
-	defer r.wg.Done()
-	select {
-	case <-r.manualStopCh:
-		r.isExitByCommand = true
-		break
-	case <-ctx.Done():
-		r.isExitByContext = true
-		break
-	case <-time.After(maxProcessDuration):
-		break
-	}
-}
-
-func TestExecutionManagerWithNoProcess(t *testing.T) {
+func TestExecutionManagerWithNoProcessAndLogger(t *testing.T) {
 	wg := sync.WaitGroup{}
 	reportCh := make(chan struct{})
 
-	executionManager := execution.NewDefaultExecutionManager()
+	log := newLogger()
+	config := execution.ExecutionManagerConfig{
+		Log: log,
+	}
+	executionManager := execution.NewExecutionManager(config)
 	go func() {
 		executionManager.ExecuteProcesses()
 		close(reportCh)
@@ -83,15 +45,22 @@ func TestExecutionManagerWithNoProcess(t *testing.T) {
 
 	wg.Wait()
 	require.NoError(t, whaitChan(reportCh), "expect: ExecuteProcesses exit\ngot: ExecuteProcesses hanging")
+	require.Equal(t, 2, len(log.lines))
+	require.Equal(t, "INFO: start all processes execution", log.lines[0])
+	require.Equal(t, "INFO: all processes execution stopped", log.lines[1])
 }
 
-func TestExecutionManagerWithOneProcessByItsExit(t *testing.T) {
+func TestExecutionManagerWithOneProcessAndLoggerByItsExit(t *testing.T) {
 	wg := sync.WaitGroup{}
 	stopCh := make(chan struct{})
 	reportCh := make(chan struct{})
 	process1 := newSomeProcess("process1", stopCh, &wg)
 
-	executionManager := execution.NewDefaultExecutionManager()
+	log := newLogger()
+	config := execution.ExecutionManagerConfig{
+		Log: log,
+	}
+	executionManager := execution.NewExecutionManager(config)
 	executionManager.TakeOnControll(process1)
 	go func() {
 		executionManager.ExecuteProcesses()
@@ -108,16 +77,27 @@ func TestExecutionManagerWithOneProcessByItsExit(t *testing.T) {
 	assert.True(t, process1.isExitByCommand)
 	assert.False(t, process1.isExitByContext)
 	require.NoError(t, whaitChan(reportCh), "expect: ExecuteProcesses exit\ngot: ExecuteProcesses hanging")
+
+	require.Equal(t, 5, len(log.lines))
+	assert.Equal(t, "INFO: start all processes execution", log.lines[0])
+	assert.Equal(t, "INFO: process \"process1\" started", log.lines[1])
+	assert.Equal(t, "INFO: graceful shutdown started by process \"process1\"", log.lines[2])
+	assert.Equal(t, "INFO: process \"process1\" stopped", log.lines[3])
+	assert.Equal(t, "INFO: all processes execution stopped", log.lines[4])
 }
 
-func TestExecutionManagerWithTwoProcessesByProcess1Exit(t *testing.T) {
+func TestExecutionManagerWithTwoProcessesAndLoggerByProcess1Exit(t *testing.T) {
 	wg := sync.WaitGroup{}
 	stopCh := make(chan struct{})
 	reportCh := make(chan struct{})
 	process1 := newSomeProcess("process1", stopCh, &wg)
 	process2 := newSomeProcess("process2", nil, &wg)
 
-	executionManager := execution.NewDefaultExecutionManager()
+	log := newLogger()
+	config := execution.ExecutionManagerConfig{
+		Log: log,
+	}
+	executionManager := execution.NewExecutionManager(config)
 	executionManager.TakeOnControll(process1, process2)
 	go func() {
 		executionManager.ExecuteProcesses()
@@ -136,16 +116,31 @@ func TestExecutionManagerWithTwoProcessesByProcess1Exit(t *testing.T) {
 	assert.False(t, process1.isExitByContext)
 	assert.True(t, process2.isExitByContext)
 	require.NoError(t, whaitChan(reportCh), "expect: ExecuteProcesses exit\ngot: ExecuteProcesses hanging")
+
+	require.Equal(t, 7, len(log.lines))
+	assert.Equal(t, "INFO: start all processes execution", log.lines[0])
+	assert.ElementsMatch(t,
+		[]string{"INFO: process \"process1\" started", "INFO: process \"process2\" started"},
+		log.lines[1:3])
+	assert.Equal(t, "INFO: graceful shutdown started by process \"process1\"", log.lines[3])
+	assert.ElementsMatch(t,
+		[]string{"INFO: process \"process1\" stopped", "INFO: process \"process2\" stopped"},
+		log.lines[4:6])
+	require.Equal(t, "INFO: all processes execution stopped", log.lines[6])
 }
 
-func TestExecutionManagerWithTwoProcessesByProcess2Exit(t *testing.T) {
+func TestExecutionManagerWithTwoProcessesAndLoggerByProcess2Exit(t *testing.T) {
 	wg := sync.WaitGroup{}
 	stopCh := make(chan struct{})
 	reportCh := make(chan struct{})
 	process1 := newSomeProcess("process1", nil, &wg)
 	process2 := newSomeProcess("process2", stopCh, &wg)
 
-	executionManager := execution.NewDefaultExecutionManager()
+	log := newLogger()
+	config := execution.ExecutionManagerConfig{
+		Log: log,
+	}
+	executionManager := execution.NewExecutionManager(config)
 	executionManager.TakeOnControll(process1)
 	executionManager.TakeOnControll(process2)
 	go func() {
@@ -165,17 +160,30 @@ func TestExecutionManagerWithTwoProcessesByProcess2Exit(t *testing.T) {
 	assert.True(t, process1.isExitByContext)
 	assert.False(t, process2.isExitByContext)
 	require.NoError(t, whaitChan(reportCh), "expect: ExecuteProcesses exit\ngot: ExecuteProcesses hanging")
+
+	require.Equal(t, 7, len(log.lines))
+	assert.Equal(t, "INFO: start all processes execution", log.lines[0])
+	assert.ElementsMatch(t,
+		[]string{"INFO: process \"process1\" started", "INFO: process \"process2\" started"},
+		log.lines[1:3])
+	assert.Equal(t, "INFO: graceful shutdown started by process \"process2\"", log.lines[3])
+	assert.ElementsMatch(t,
+		[]string{"INFO: process \"process1\" stopped", "INFO: process \"process2\" stopped"},
+		log.lines[4:6])
+	require.Equal(t, "INFO: all processes execution stopped", log.lines[6])
 }
 
-func TestExecutionManagerWithTwoProcessesBySignalExit(t *testing.T) {
+func TestExecutionManagerWithTwoProcessesAndLoggerBySignalExit(t *testing.T) {
 	wg := sync.WaitGroup{}
 	reportCh := make(chan struct{})
-	stopSignal := syscall.SIGUSR1
+	stopSignal := syscall.SIGUSR2
 	process1 := newSomeProcess("process1", nil, &wg)
 	process2 := newSomeProcess("process2", nil, &wg)
 
+	log := newLogger()
 	config := execution.ExecutionManagerConfig{
 		Signals: []os.Signal{stopSignal},
+		Log:     log,
 	}
 	executionManager := execution.NewExecutionManager(config)
 	executionManager.TakeOnControll(process2, process1)
@@ -196,36 +204,36 @@ func TestExecutionManagerWithTwoProcessesBySignalExit(t *testing.T) {
 	assert.True(t, process1.isExitByContext)
 	assert.True(t, process2.isExitByContext)
 	require.NoError(t, whaitChan(reportCh), "expect: ExecuteProcesses exit\ngot: ExecuteProcesses hanging")
+
+	require.Equal(t, 7, len(log.lines))
+	assert.Equal(t, "INFO: start all processes execution", log.lines[0])
+	assert.ElementsMatch(t,
+		[]string{"INFO: process \"process1\" started", "INFO: process \"process2\" started"},
+		log.lines[1:3])
+	assert.Equal(t, "INFO: graceful shutdown started by signal \"user defined signal 2\"", log.lines[3])
+	assert.ElementsMatch(t,
+		[]string{"INFO: process \"process1\" stopped", "INFO: process \"process2\" stopped"},
+		log.lines[4:6])
+	require.Equal(t, "INFO: all processes execution stopped", log.lines[6])
 }
 
-func isChanBlocked(ch <-chan struct{}) bool {
-	select {
-	case <-ch:
-		return false
-	default:
-		return true
-	}
+func newLogger() *logger { return &logger{lines: []string{}} }
+
+type logger struct {
+	lines  []string
+	locker sync.Mutex
 }
 
-func whaitChan(ch <-chan struct{}) error {
-	select {
-	case <-ch:
-		return nil
-	case <-time.After(maxProcessDuration):
-		return fmt.Errorf("whaiting on chanel failed by timeout")
-	}
+func (r *logger) Infof(format string, args ...interface{}) {
+	r.locker.Lock()
+	defer r.locker.Unlock()
+	line := fmt.Sprintf("INFO: "+format, args...)
+	r.lines = append(r.lines, line)
 }
 
-func whait2Chans(chan1 <-chan struct{}, chan2 <-chan struct{}) error {
-	for i := 0; i < 2; i++ {
-		select {
-		case <-chan1:
-			chan1 = nil
-		case <-chan2:
-			chan2 = nil
-		case <-time.After(maxProcessDuration):
-			return fmt.Errorf("whaiting on 2 chanels failed by timeout: chan1 is Done: %t, chan2 is Done: %t", chan1 == nil, chan2 == nil)
-		}
-	}
-	return nil
+func (r *logger) Errorf(format string, args ...interface{}) {
+	r.locker.Lock()
+	defer r.locker.Unlock()
+	line := fmt.Sprintf("ERROR: "+format, args...)
+	r.lines = append(r.lines, line)
 }

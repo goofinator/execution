@@ -27,7 +27,7 @@ import (
 
 // ExecutionManagerConfig is a configuration of ExecutionManager
 type ExecutionManagerConfig struct {
-	// Signals is a list of syscall.Signals capable to initiate shotdown (default: [SIGINT, SIGTERM])
+	// Signals is a list of syscall.Signals capable to initiate shutdown (default: [SIGINT, SIGTERM])
 	Signals []os.Signal
 	// Log is a Logger that will be used to display a processes execution status (default: nil - no output)
 	Log Logger
@@ -85,8 +85,9 @@ func (r *ExecutionManager) TakeOnControll(process ...ManagedProcess) {
 // the ctx of all processes will be canceled, so every Run method should return so fast as it can.
 // This method returns when all controlled processes returns from their Run methods.
 func (r *ExecutionManager) ExecuteProcesses() {
-	r.logInfof("start all processes execution")
 	defer r.cancelFunc()
+	r.logInfof("start all processes execution")
+	defer r.logInfof("all processes execution stopped")
 	r.wg.Add(len(r.processes))
 	go r.listenSignals()
 	for _, process := range r.processes {
