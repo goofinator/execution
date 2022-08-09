@@ -20,7 +20,9 @@ package execution_test
 import (
 	"context"
 	"fmt"
+	"os"
 	"sync"
+	"syscall"
 	"testing"
 	"time"
 
@@ -65,14 +67,53 @@ func (r *someProcess) Run(ctx context.Context) {
 	}
 }
 
-func TestExecutionManagerExitByProcess1(t *testing.T) {
+func TestExecutionManagerWithNoProcess(t *testing.T) {
+	wg := sync.WaitGroup{}
+	reportCh := make(chan struct{})
+
+	executionManager := execution.NewDefaultExecutionManager()
+	go func() {
+		executionManager.ExecuteProcesses()
+		close(reportCh)
+	}()
+
+	wg.Wait()
+	require.NoError(t, whaitChan(reportCh), "expect: ExecuteProcesses exit\ngot: ExecuteProcesses hanging")
+}
+
+func TestExecutionManagerWithOnlyOneProcessByItsExit(t *testing.T) {
+	wg := sync.WaitGroup{}
+	stopCh := make(chan struct{})
+	reportCh := make(chan struct{})
+	process1 := newSomeProcess(stopCh, &wg)
+
+	executionManager := execution.NewDefaultExecutionManager()
+	executionManager.TakeOnControll(process1)
+	go func() {
+		executionManager.ExecuteProcesses()
+		close(reportCh)
+	}()
+
+	require.NoError(t, whaitChan(process1.isRunCalledCh()),
+		"expect: every process.Run method is called\ngot: not every process.Run method is called")
+	assert.True(t, isChanBlocked(reportCh),
+		"expect: ExecuteProcesses waits for all processes shutdown\ngot: ExecuteProcesses returns before any process.Run has been returned")
+	close(stopCh)
+	wg.Wait()
+
+	assert.True(t, process1.isExitByCommand)
+	assert.False(t, process1.isExitByContext)
+	require.NoError(t, whaitChan(reportCh), "expect: ExecuteProcesses exit\ngot: ExecuteProcesses hanging")
+}
+
+func TestExecutionManagerWithTwoProcessByProcess1Exit(t *testing.T) {
 	wg := sync.WaitGroup{}
 	stopCh := make(chan struct{})
 	reportCh := make(chan struct{})
 	process1 := newSomeProcess(stopCh, &wg)
 	process2 := newSomeProcess(nil, &wg)
 
-	executionManager := execution.NewExecutionManager()
+	executionManager := execution.NewDefaultExecutionManager()
 	executionManager.TakeOnControll(process1, process2)
 	go func() {
 		executionManager.ExecuteProcesses()
@@ -93,14 +134,14 @@ func TestExecutionManagerExitByProcess1(t *testing.T) {
 	require.NoError(t, whaitChan(reportCh), "expect: ExecuteProcesses exit\ngot: ExecuteProcesses hanging")
 }
 
-func TestExecutionManagerExitByProcess2(t *testing.T) {
+func TestExecutionManagerWithTwoProcessByProcess2Exit(t *testing.T) {
 	wg := sync.WaitGroup{}
 	stopCh := make(chan struct{})
 	reportCh := make(chan struct{})
 	process1 := newSomeProcess(nil, &wg)
 	process2 := newSomeProcess(stopCh, &wg)
 
-	executionManager := execution.NewExecutionManager()
+	executionManager := execution.NewDefaultExecutionManager()
 	executionManager.TakeOnControll(process1)
 	executionManager.TakeOnControll(process2)
 	go func() {
@@ -119,6 +160,37 @@ func TestExecutionManagerExitByProcess2(t *testing.T) {
 	assert.True(t, process2.isExitByCommand)
 	assert.True(t, process1.isExitByContext)
 	assert.False(t, process2.isExitByContext)
+	require.NoError(t, whaitChan(reportCh), "expect: ExecuteProcesses exit\ngot: ExecuteProcesses hanging")
+}
+
+func TestExecutionManagerWithTwoProcessBySignalExit(t *testing.T) {
+	wg := sync.WaitGroup{}
+	reportCh := make(chan struct{})
+	stopSignal := syscall.SIGUSR1
+	process1 := newSomeProcess(nil, &wg)
+	process2 := newSomeProcess(nil, &wg)
+
+	config := execution.ExecutionManagerConfig{
+		Signals: []os.Signal{stopSignal},
+	}
+	executionManager := execution.NewExecutionManager(config)
+	executionManager.TakeOnControll(process2, process1)
+	go func() {
+		executionManager.ExecuteProcesses()
+		close(reportCh)
+	}()
+
+	require.NoError(t, whait2Chans(process1.isRunCalledCh(), process2.isRunCalledCh()),
+		"expect: every process.Run method is called\ngot: not every process.Run method is called")
+	assert.True(t, isChanBlocked(reportCh),
+		"expect: ExecuteProcesses waits for all processes shutdown\ngot: ExecuteProcesses returns before any process.Run has been returned")
+	require.NoError(t, syscall.Kill(syscall.Getpid(), stopSignal))
+	wg.Wait()
+
+	assert.False(t, process1.isExitByCommand)
+	assert.False(t, process2.isExitByCommand)
+	assert.True(t, process1.isExitByContext)
+	assert.True(t, process2.isExitByContext)
 	require.NoError(t, whaitChan(reportCh), "expect: ExecuteProcesses exit\ngot: ExecuteProcesses hanging")
 }
 

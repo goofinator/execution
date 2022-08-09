@@ -19,27 +19,51 @@ package execution
 
 import (
 	"context"
+	"os"
+	"os/signal"
 	"sync"
+	"syscall"
 )
 
-func NewExecutionManager() *ExecutionManager {
+// ExecutionManagerConfig is a configuration of ExecutionManager
+type ExecutionManagerConfig struct {
+	// Signals - is a list of syscall.Signals capable to initiate shotdown (default: [SIGINT, SIGTERM])
+	Signals []os.Signal
+}
+
+// NewDefaultExecutionManager creates preconfigured ExecutionManager
+// gracefull shutdown will be initiated by SIGINT or SIGTERM signals
+func NewDefaultExecutionManager() *ExecutionManager {
+	config := ExecutionManagerConfig{}
+	return NewExecutionManager(config)
+}
+
+// NewExecutionManager creates ExecutionManager with given configuration
+func NewExecutionManager(config ExecutionManagerConfig) *ExecutionManager {
+	if config.Signals == nil {
+		config.Signals = []os.Signal{syscall.SIGINT, syscall.SIGTERM}
+	}
 	ctx, cancelFunc := context.WithCancel(context.Background())
+	signChan := make(chan os.Signal, 1)
+	signal.Notify(signChan, config.Signals...)
 	return &ExecutionManager{
 		ctx:        ctx,
 		cancelFunc: cancelFunc,
 		wg:         &sync.WaitGroup{},
+		sigChan:    signChan,
 	}
 }
 
 // The ExecutionManager ensures that multiple processes are executed in a controlled manner.
 // A graceful termination will be initiated if one of the conditions is met:
-//  - ExecutionManager receives a SIGINT or SIGTERM signal.
+//  - Programm receives one of the predefined signals.
 //  - One of the processes returns from its Run method
 type ExecutionManager struct {
 	ctx        context.Context
 	cancelFunc context.CancelFunc
 	processes  []ManagedProcess
 	wg         *sync.WaitGroup
+	sigChan    chan os.Signal
 }
 
 // TakeOnControll takes process under ExecutionManager controll.
@@ -50,17 +74,31 @@ func (r *ExecutionManager) TakeOnControll(process ...ManagedProcess) {
 
 // ExecuteProcesses starts all processes under its control by calling the Run method.
 // If one of the conditions is met:
-//  - ExecutionManager receives a SIGINT or SIGTERM signal;
+//  - Programm receives one of the predefined signals;
 //  - One of the processes returns from its Run method;
 // the ctx of all processes will be canceled, so every Run method should return so fast as it can.
 // This method returns when all controlled processes returns from their Run methods.
 func (r ExecutionManager) ExecuteProcesses() {
 	defer r.cancelFunc()
-	r.wg.Add(len(r.processes))
+	if len(r.processes) == 0 {
+		return
+	}
+	r.wg.Add(len(r.processes) + 1)
+	go r.listenSignals()
 	for _, process := range r.processes {
 		go r.run(process)
 	}
 	r.wg.Wait()
+}
+
+func (r ExecutionManager) listenSignals() {
+	defer r.wg.Done()
+	select {
+	case <-r.sigChan:
+		r.cancelFunc()
+	case <-r.ctx.Done():
+		break
+	}
 }
 
 func (r ExecutionManager) run(process ManagedProcess) {
