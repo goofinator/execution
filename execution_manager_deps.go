@@ -23,11 +23,12 @@ type (
 	// ManagedProcess implements some process within it's Run method.
 	// Run method should return as the ctx is cancelled.
 	ManagedProcess interface {
+		// Run method should be synchronous. it's Goroutine will be created by ExecutionManager.
 		Run(ctx context.Context)
 		Name() string
 	}
 	// Logger to write processes execution status log.
-	// It should usable with concurrent writing.
+	// It should be usable with concurrent writing.
 	Logger interface {
 		Infof(format string, args ...interface{})
 		Errorf(format string, args ...interface{})
