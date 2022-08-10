@@ -13,3 +13,5 @@ If on of these goroutines will return, or if an application will get a configure
 
 You can provide a configuration of type **execution.ExecutionManagerConfig** to setup a set of signals to start a procedure of graceful shutdown.
 Also external logger could be provided to display a log of execution state changing. This logger should satisfy an **execution.Logger** interface.
+
+Example of using this framework to manage the execution of two web servers available [here](examples/few_web_servers/README.md).
