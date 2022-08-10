@@ -47,7 +47,7 @@ type panicProcess struct {
 	isExitByContext bool
 }
 
-func (r panicProcess) isRunCalledCh() <-chan struct{} { return r.runCalledCh }
+func (r *panicProcess) isRunCalledCh() <-chan struct{} { return r.runCalledCh }
 
 func (r panicProcess) Name() string { return r.name }
 
@@ -60,7 +60,6 @@ func (r *panicProcess) Run(ctx context.Context) {
 		panic("AAA!!! Aliens!!! Not again!!!")
 	case <-ctx.Done():
 		r.isExitByContext = true
-		break
 	case <-time.After(maxProcessDuration):
 		break
 	}
