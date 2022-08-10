@@ -32,10 +32,12 @@ and terminate the application with SIGTERM (Ctrl+C in the first terminal),
 you'll see the log of two web services execution managment.
 ```bash
 INFO[0000] start all processes execution                
-INFO[0000] process "monitoring web server" started      
 INFO[0000] process "api web server" started             
-^CINFO[0000] graceful shutdown started by signal "interrupt" 
-INFO[0000] process "monitoring web server" stopped      
-INFO[0000] process "api web server" stopped             
-INFO[0000] all processes execution stopped 
+INFO[0000] process "monitoring web server" started      
+INFO[0002] GET: /api/v1/wisdom                          
+INFO[0004] GET: /api/v1/ping                            
+^CINFO[0007] graceful shutdown started by signal "interrupt" 
+INFO[0007] process "monitoring web server" stopped      
+INFO[0007] process "api web server" stopped             
+INFO[0007] all processes execution stopped
 ```
