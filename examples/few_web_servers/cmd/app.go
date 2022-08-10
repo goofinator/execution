@@ -22,7 +22,7 @@ import (
 	"net/http"
 
 	"github.com/goofinator/execution"
-	"github.com/goofinator/execution/examples/few_web_services/web_server"
+	"github.com/goofinator/execution/examples/few_web_servers/web_server"
 	"github.com/gorilla/mux"
 	log "github.com/sirupsen/logrus"
 )
