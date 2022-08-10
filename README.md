@@ -11,5 +11,5 @@ If on of these goroutines will return, or if an application will get a configure
 (SIGINT or SIGTERM by default) the common context will be cancelled.
 **ExecuteProcesses** method will return when all of processes under control returns from it's **Run** method.
 
-You can provide a configuratio of type **execution.ExecutionManagerConfig** to setup a set of signals to start a procedure of graceful shutdown.
-Also external logger could be provided to display a log of execution state changing. This logger should satisfy a **execution.Logger** interface.
+You can provide a configuration of type **execution.ExecutionManagerConfig** to setup a set of signals to start a procedure of graceful shutdown.
+Also external logger could be provided to display a log of execution state changing. This logger should satisfy an **execution.Logger** interface.
