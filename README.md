@@ -1,6 +1,6 @@
 # execution
 
-This package provides a kind of framework to run a few of hi level goroutine which are locally called processes
+This package provides a kind of framework to run a few of high level goroutine which are locally called processes
 and provide it's graceful shutdown by context cancellation.
 
 If your process object has a methods to satisfy **execution.ManagedProcess** interface.
