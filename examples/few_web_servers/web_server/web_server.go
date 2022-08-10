@@ -26,10 +26,23 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
+func Recovery(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		defer func() {
+			err := recover()
+			if err != nil {
+				log.Errorf("panic during request: %s", r.URL)
+				w.WriteHeader(http.StatusInternalServerError)
+			}
+		}()
+		next.ServeHTTP(w, r)
+	})
+}
+
 func NewWebServer(name string, port int, handler http.Handler) WebServer {
 	return WebServer{
 		Server: &http.Server{
-			Handler: handler,
+			Handler: Recovery(handler),
 			Addr:    fmt.Sprintf(":%d", port),
 		},
 		name: name,
