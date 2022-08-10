@@ -47,6 +47,10 @@ func NewApiHandler() *mux.Router {
 		fmt.Fprintln(w, "life is short")
 	}).Methods("GET")
 
+	r.HandleFunc("/api/v1/panic", func(w http.ResponseWriter, r *http.Request) {
+		panic("AAA the Shark!!!")
+	}).Methods("GET")
+
 	r.HandleFunc("/api/v1/ping", func(w http.ResponseWriter, r *http.Request) {
 		cntr++
 		if cntr > 3 {
@@ -65,6 +69,7 @@ func NewStateHandler() *mux.Router {
 		if err != nil || result.StatusCode >= 300 {
 			log.Error("health check failed")
 			w.WriteHeader(http.StatusInternalServerError)
+			fmt.Fprintln(w, "health check failed")
 			return
 		}
 		fmt.Fprintln(w, "looks healthy")
