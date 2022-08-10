@@ -89,10 +89,10 @@ func (r *ExecutionManager) ExecuteProcesses() {
 	r.logInfof("start all processes execution")
 	defer r.logInfof("all processes execution stopped")
 	r.wg.Add(len(r.processes))
-	go r.listenSignals()
 	for _, process := range r.processes {
 		go r.run(process)
 	}
+	go r.listenSignals()
 	r.wg.Wait()
 }
 

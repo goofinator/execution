@@ -52,7 +52,7 @@ type someProcess struct {
 	isExitByContext bool
 }
 
-func (r someProcess) isRunCalledCh() <-chan struct{} { return r.runCalledCh }
+func (r *someProcess) isRunCalledCh() <-chan struct{} { return r.runCalledCh }
 
 func (r someProcess) Name() string { return r.name }
 
@@ -62,10 +62,8 @@ func (r *someProcess) Run(ctx context.Context) {
 	select {
 	case <-r.manualStopCh:
 		r.isExitByCommand = true
-		break
 	case <-ctx.Done():
 		r.isExitByContext = true
-		break
 	case <-time.After(maxProcessDuration):
 		break
 	}
