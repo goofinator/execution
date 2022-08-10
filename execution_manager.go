@@ -15,6 +15,8 @@
 // You should have received a copy of the GNU General Public License
 // along with execution.  If not, see <http://www.gnu.org/licenses/>.
 
+// execution provides a kind of framework to run a few of hi level goroutine which are locally called processes
+// and provide it's graceful shutdown by context cancellation.
 package execution
 
 import (
