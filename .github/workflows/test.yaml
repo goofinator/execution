@@ -15,15 +15,12 @@
 # You should have received a copy of the GNU General Public License
 # along with execution.  If not, see <http://www.gnu.org/licenses/>.
 
-File: .github/workflows/test.yml
 name: Test
-
 on:
   push:
     branches: [main]
   pull_request:
     branches: [main]
-
 jobs:
   test:
     runs-on: ubuntu-20.04
